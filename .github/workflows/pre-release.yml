@@ -46,7 +46,7 @@ jobs:
         id: calculate-version
         run: |
           # Use a tool like semver to increment the version
-          NEXT_VERSION=$(npx semver ${{ env.current_version }} --increment prerelease --preid=RC)
+          NEXT_VERSION=$(npx semver ${{ env.current_version }} --increment prerelease --preid=rc)
           echo "next_version=$NEXT_VERSION" >> $GITHUB_ENV
           echo "Calculated next_version: $NEXT_VERSION"
 
