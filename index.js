@@ -1,1 +1,1 @@
-module.exports = () => 'Hello, new World!!!!!';
+module.exports = () => 'Hello, new World 2!!!!!';

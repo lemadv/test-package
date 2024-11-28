@@ -74,13 +74,32 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const { data: commits } = await github.rest.repos.listCommits({
+            // Get the latest tag before the current one
+            const { data: tags } = await github.rest.repos.listTags({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: context.ref.replace('refs/heads/', ''),
-              per_page: 100
+              per_page: 2
             });
-            const notes = commits.map(commit => `- ${commit.commit.message}`).join('\n');
+
+            if (tags.length < 2) {
+              // No previous tag exists
+              core.setOutput("notes", "This is the first release. No previous commits to compare.");
+              return;
+            }
+
+            const currentTag = tags[0].name;
+            const previousTag = tags[1].name;
+
+            // Get commits between the previous tag and the current tag
+            const { data: commits } = await github.rest.repos.compareCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: previousTag,
+              head: currentTag
+            });
+
+            const notes = commits.commits.map(commit => `- ${commit.commit.message}`).join('\n');
+
             core.setOutput("notes", notes);
 
       - name: Create GitHub Release
