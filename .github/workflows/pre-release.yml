@@ -19,6 +19,11 @@ jobs:
           node-version: 18
           cache: 'npm'
 
+      - name: Configure Git with Triggering User
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
       - name: Install dependencies
         run: npm install
 
