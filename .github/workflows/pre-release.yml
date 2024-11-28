@@ -49,7 +49,6 @@ jobs:
       - name: Calculate next version
         id: calculate-version
         run: |
-          # Use a tool like semver to increment the version
           NEXT_VERSION=$(npx semver ${{ env.current_version }} --increment prerelease --preid=rc)
           echo "next_version=$NEXT_VERSION" >> $GITHUB_ENV
           echo "Calculated next_version: $NEXT_VERSION"
@@ -74,7 +73,6 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            // Get the latest tag before the current one
             const { data: tags } = await github.rest.repos.listTags({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -82,7 +80,6 @@ jobs:
             });
 
             if (tags.length < 2) {
-              // No previous tag exists
               core.setOutput("notes", "This is the first release. No previous commits to compare.");
               return;
             }
@@ -90,7 +87,6 @@ jobs:
             const currentTag = tags[0].name;
             const previousTag = tags[1].name;
 
-            // Get commits between the previous tag and the current tag
             const { data: commits } = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -98,9 +94,28 @@ jobs:
               head: currentTag
             });
 
-            const notes = commits.commits.map(commit => `- ${commit.commit.message}`).join('\n');
+            const groupedCommits = commits.commits.reduce((groups, commit) => {
+              const message = commit.commit.message;
+              const match = message.match(/^(feat|fix|docs|chore|test|refactor|style|perf|build|ci|multiple)(?:\s|:|-)/i);
+              const type = match ? match[1].toLowerCase() : 'others';
+              if (!groups[type]) {
+                groups[type] = [];
+              }
+              groups[type].push({
+                hash: commit.sha.slice(0, 7),
+                message: message.replace(/\n.*/, ''), // First line only
+              });
+              return groups;
+            }, {});
 
-            core.setOutput("notes", notes);
+            let notes = '';
+            for (const [type, commits] of Object.entries(groupedCommits)) {
+              notes += `### ${type}\n`;
+              notes += commits.map(commit => `- ${type} - ${commit.hash} ${commit.message}`).join('\n');
+              notes += '\n\n';
+            }
+
+            core.setOutput("notes", notes.trim());
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
