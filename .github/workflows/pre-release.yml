@@ -68,3 +68,28 @@ jobs:
         run: |
           git tag v${{ env.next_version }}
           git push origin v${{ env.next_version }}
+
+      - name: Generate Release Notes
+        id: generate-notes
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: commits } = await github.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.ref
+            });
+            return commits.map(commit => `- ${commit.commit.message}`).join('\n');
+        outputs:
+          notes: ${{ steps.generate-notes.outputs.result }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.next_version }}
+          release_name: Release v${{ env.next_version }}
+          body: ${{ steps.generate-notes.outputs.notes }}
+          draft: false
+          prerelease: true
