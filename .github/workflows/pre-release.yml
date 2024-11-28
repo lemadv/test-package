@@ -2,8 +2,8 @@ name: Pre-release Workflow
 
 on:
   push:
-    tags:
-      - 'v*' # Trigger only for semantic version tags
+    branches:
+      - staging
 
 jobs:
   pre-release:
@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0 # Ensure full history is available for tag comparison
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -37,33 +35,98 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Get current version from npm
+        id: get-version
+        run: |
+          set -e  # Exit on errors
+          CURRENT_VERSION=$(npm dist-tag ls test-package-lema2 2>/dev/null | grep rc: | awk '{print $2}')
+          if [ -z "$CURRENT_VERSION" ]; then
+            CURRENT_VERSION="0.0.1-rc.0"  # Default to first pre-release
+          fi
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "Fetched current_version: $CURRENT_VERSION"
+
+      - name: Calculate next version
+        id: calculate-version
+        run: |
+          NEXT_VERSION=$(npx semver ${{ env.current_version }} --increment prerelease --preid=rc)
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_ENV
+          echo "Calculated next_version: $NEXT_VERSION"
+
+      - name: Update version in package.json
+        run: npm version ${{ env.next_version }} --no-git-tag-version
+
       - name: Publish pre-release to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag rc
   
+      - name: Create and push Git tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag v${{ env.next_version }}
+          git push origin v${{ env.next_version }}
+
       - name: Generate Release Notes
         id: generate-notes
-        run: |
-          git fetch --tags
-          CURRENT_TAG=$(git describe --tags --abbrev=0)
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^")
-          echo "Current tag: $CURRENT_TAG"
-          echo "Previous tag: $PREVIOUS_TAG"
-          COMMITS=$(git log $PREVIOUS_TAG..$CURRENT_TAG --pretty=format:"- %h %s" --reverse)
-          if [ -z "$COMMITS" ]; then
-            COMMITS="No commits found between $PREVIOUS_TAG and $CURRENT_TAG."
-          fi
-          echo "notes=$COMMITS" >> $GITHUB_ENV
-        shell: bash
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: tags } = await github.rest.repos.listTags({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 2
+            });
+
+            if (tags.length < 2) {
+              core.setOutput("notes", "This is the first release. No previous commits to compare.");
+              return;
+            }
+
+            const currentTag = tags[0].name;
+            const previousTag = tags[1].name;
+
+            console.log(`Current Tag: ${currentTag}`);
+            console.log(`Previous Tag: ${previousTag}`);
+
+            const { data: commits } = await github.rest.repos.compareCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: previousTag,
+              head: currentTag
+            });
+
+            const groupedCommits = commits.commits.reduce((groups, commit) => {
+              const message = commit.commit.message;
+              const match = message.match(/^(feat|fix|docs|chore|test|refactor|style|perf|build|ci|multiple)(?:\s|:|-)/i);
+              const type = match ? match[1].toLowerCase() : 'others';
+              if (!groups[type]) {
+                groups[type] = [];
+              }
+              groups[type].push({
+                hash: commit.sha.slice(0, 7),
+                message: message.replace(/\n.*/, ''), // First line only
+              });
+              return groups;
+            }, {});
+
+            let notes = '';
+            for (const [type, commits] of Object.entries(groupedCommits)) {
+              notes += `### ${type}\n`;
+              notes += commits.map(commit => `- ${type} - ${commit.hash} ${commit.message}`).join('\n');
+              notes += '\n\n';
+            }
+
+            core.setOutput("notes", notes.trim());
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body: ${{ env.notes }}
+          tag_name: v${{ env.next_version }}
+          release_name: Release v${{ env.next_version }}
+          body: ${{ steps.generate-notes.outputs.notes }}
           draft: false
           prerelease: true
