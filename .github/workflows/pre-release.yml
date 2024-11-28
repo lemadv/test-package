@@ -27,9 +27,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Authenticate with npm
+      - name: Ensure Git working directory is clean
         run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          git add .
+          git commit -m "Committing changes before version bump" || echo "No changes to commit"
 
       - name: Bump pre-release version
         run: |
