@@ -42,6 +42,7 @@ jobs:
         run: |
           CURRENT_VERSION=$(npm view test-package version)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "Calculated next_version: $CURRENT_VERSION"
 
       - name: Calculate next version
         id: calculate-version
