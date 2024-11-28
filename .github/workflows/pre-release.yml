@@ -77,11 +77,10 @@ jobs:
             const { data: commits } = await github.repos.listCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: context.payload.ref
+              sha: context.ref
             });
-            return commits.map(commit => `- ${commit.commit.message}`).join('\n');
-        outputs:
-          notes: ${{ steps.generate-notes.outputs.result }}
+            const notes = commits.map(commit => `- ${commit.commit.message}`).join('\n');
+            core.setOutput("notes", notes);
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
