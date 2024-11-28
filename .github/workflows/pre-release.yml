@@ -17,6 +17,9 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          registry-url: 'https://registry.npmjs.org/'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Cache npm tarballs
         uses: actions/cache@v3
@@ -26,30 +29,34 @@ jobs:
           restore-keys: |
             npm-
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Get current version from npm
-        id: get-version
+      - name: Bump pre-release version
         run: |
-          CURRENT_VERSION=$(npm view test-package-lema version)
-          echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
+          npm version prerelease --preid=rc -m "Pre-release: %s"
 
-      - name: Calculate next version
-        id: calculate-version
+      - name: Ensure Git working directory is clean
         run: |
-          # Use a tool like semver to increment the version
-          NEXT_VERSION=$(npx semver ${{ env.current_version }} --increment prerelease --preid=rc)
-          echo "next_version=$NEXT_VERSION" >> $GITHUB_ENV
+            git add .
+            git commit -m "Committing changes before version bump" || echo "No changes to commit"
+
+      - name: Push version bump and tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+          git push origin HEAD:staging --follow-tags
 
       - name: Publish pre-release to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag rc
 
-      - name: Create and push Git tag
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git tag v${{ env.next_version }}
-          git push origin v${{ env.next_version }}
+      - name: Cleanup npm cache
+        run: npm cache clean --force
