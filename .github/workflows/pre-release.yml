@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: 18
           registry-url: 'https://registry.npmjs.org/'
           cache: 'npm'
 
@@ -48,3 +48,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag rc
+
+      - name: Cleanup npm cache
+        run: npm cache clean --force
