@@ -102,9 +102,6 @@ jobs:
             const currentTag = tags[0].name;
             const previousTag = tags[1].name;
       
-            console.log(`Current Tag: ${currentTag}`);
-            console.log(`Previous Tag: ${previousTag}`);
-      
             const { data: commits } = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -117,7 +114,7 @@ jobs:
               const message = commit.commit.message;
       
               // Match the format [type](component): description
-              const match = message.match(/^\[(\w+)\]\(([\w-]+)\): (.+)$/);
+              const match = message.match(/^(\w+)\(([\w-]+)\): (.+)$/);
               const type = match ? match[1] : "-";
               const component = match ? match[2] : "-";
               const description = match ? match[3] : message;
