@@ -81,7 +81,7 @@ jobs:
           command: |
             curl -X POST https://api.github.com/repos/lemadv/test-package/releases \
               -H "Authorization: token $GITHUB_TOKEN" \
-              -d @- <<EOF
+              -d @- \<<EOF
             {
               "tag_name": "v${{ env.next_version }}",
               "name": "Release v${{ env.next_version }}",
