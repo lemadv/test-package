@@ -87,6 +87,11 @@ jobs:
             echo "$commits" > release_notes.md
 
       - run:
+          name: Debug Environment Variable
+          command: |
+             echo "Variable is available: $GITHUB_TOKEN"
+
+      - run:
           name: Create GitHub Release
           command: |
             # Extract variables
