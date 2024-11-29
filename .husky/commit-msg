@@ -1,10 +1,12 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
+# Regex to validate commit message format
 regex="^(\w+)\((.+?)\):\s*(.+)$"
 
+# Read the commit message from the provided file
 commit_message=$(cat "$1")
 
+# Validate the commit message against the regex
 if ! echo "$commit_message" | grep -qE "$regex"; then
   echo "❌ Invalid commit message format."
   echo ""

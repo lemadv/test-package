@@ -89,17 +89,18 @@ jobs:
       - run:
           name: Create GitHub Release
           command: |
+            # Extract variables
+            RELEASE_BODY=$(cat release_notes.md)
             curl -X POST https://api.github.com/repos/lemadv/test-package/releases \
               -H "Authorization: token $GITHUB_TOKEN" \
-              -d @- \<<EOF
-            {
-              "tag_name": "v${{ env.next_version }}",
-              "name": "Release v${{ env.next_version }}",
-              "body": "$(cat release_notes.md)",
-              "draft": false,
-              "prerelease": true
-            }
-            EOF
+              -H "Content-Type: application/json" \
+              -d '{
+                "tag_name": "'"v$NEXT_VERSION"'",
+                "name": "'"Release v$NEXT_VERSION"'",
+                "body": "'"${RELEASE_BODY}"'",
+                "draft": false,
+                "prerelease": true
+              }'
           environment:
             GITHUB_TOKEN: $GITHUB_TOKEN
 
