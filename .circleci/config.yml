@@ -79,7 +79,7 @@ jobs:
       - run:
           name: Create GitHub Release
           command: |
-            curl -X POST https://api.github.com/repos/<<your-organization>>/<<your-repo>>/releases \
+            curl -X POST https://api.github.com/repos/lemadv/test-package/releases \
               -H "Authorization: token $GITHUB_TOKEN" \
               -d @- <<EOF
             {
