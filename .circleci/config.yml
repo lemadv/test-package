@@ -39,7 +39,7 @@ jobs:
           command: |
             set -e
             CURRENT_VERSION=$(node -p "require('./package.json').version")
-            ALL_VERSIONS=$(npm view <<your-npm-package>> versions --json)
+            ALL_VERSIONS=$(npm view test-package-lema2 versions --json)
             CURRENT_RC=$(echo $ALL_VERSIONS | jq -r '.[]' | grep "^${CURRENT_VERSION}-rc\." || true)
             if [ -z "$CURRENT_RC" ]; then
               NEXT_VERSION="${CURRENT_VERSION}-rc.1"
