@@ -25,8 +25,18 @@
     "@nestjs/platform-express": "^10.0.2",
     "@ngrx/signals": "^18.1.1",
     "axios": "^1.6.0",
+    "commitlint": "^19.6.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "~7.8.0",
     "zone.js": "~0.14.3"
+  },
+  "devDependencies": {
+    "commitizen": "^4.3.1",
+    "cz-customizable": "^7.2.1"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-customizable"
+    }
   }
 }
