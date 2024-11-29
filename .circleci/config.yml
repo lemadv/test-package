@@ -93,6 +93,7 @@ jobs:
 
       - run:
           name: Create GitHub Release
+          shell: /bin/bash
           command: |
             # Debug token substitution
             if [ -z "$GITHUB_TOKEN" ]; then
