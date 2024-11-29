@@ -41,7 +41,7 @@ const axios = require('axios');
     const groupedCommits = commits.reduce((groups, commit) => {
       const message = commit.commit.message;
 
-      // Match the format [type](component): description
+      // Match the format type(component): description
       const match = message.match(/^(\w+)\((.+?)\):\s*(.+)$/);
       const type = match ? match[1] : '-';
       const component = match ? match[2] : '-';

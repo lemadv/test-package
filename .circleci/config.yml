@@ -104,26 +104,27 @@ jobs:
           name: Create GitHub Release
           shell: /bin/bash
           command: |
-            # Debug token substitution
-            if [ -z "$RELEASE_NOTES" ]; then
-              echo "❌ RELEASE_NOTES is not set"
+            # Check that release notes are generated
+            if [ ! -f release_notes.md ]; then
+              echo "❌ release_notes.md not found. Make sure the Generate Release Notes step ran correctly."
               exit 1
-            else
-              echo "✅ RELEASE_NOTES is available"
             fi
 
-            # Debug other variables
-            echo "NEXT_VERSION: $NEXT_VERSION"
-            echo "RELEASE_NOTES: $RELEASE_NOTES"
+            # Read the entire file into a variable, preserving newlines
+            RELEASE_NOTES=$(<release_notes.md)
 
-            # Generate payload
+            # Debug: Output the release notes
+            echo "Release Notes:"
+            echo "$RELEASE_NOTES"
+
+            # Generate payload using jq, ensuring multiline strings are preserved
             PAYLOAD=$(jq -n --arg tag_name "v$NEXT_VERSION" \
                             --arg name "Release v$NEXT_VERSION" \
                             --arg body "$RELEASE_NOTES" \
                             '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: true}')
-            echo "Generated payload: $PAYLOAD"
+            echo "Payload: $PAYLOAD"
 
-            # Create release
+            # Send the payload to create the GitHub release
             curl -X POST \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Content-Type: application/json" \
