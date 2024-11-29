@@ -91,7 +91,7 @@ jobs:
             }
             EOF
           environment:
-            GITHUB_TOKEN: <<your-github-token>>
+            GITHUB_TOKEN: $GITHUB_TOKEN
 
 workflows:
   version: 2
