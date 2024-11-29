@@ -60,6 +60,11 @@ jobs:
              echo "Variable is available: $NPM_TOKEN"
 
       - run:
+          name: Set Up npm Authentication
+          command: |
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+
+      - run:
           name: Publish Pre-release to npm
           command: npm publish --tag rc
           environment:
