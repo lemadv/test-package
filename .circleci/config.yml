@@ -55,6 +55,11 @@ jobs:
           command: npm version $NEXT_VERSION --no-git-tag-version
 
       - run:
+          name: Debug Environment Variable
+          command: |
+             echo "Variable is available: $MY_SECRET_VARIABLE"
+
+      - run:
           name: Publish Pre-release to npm
           command: npm publish --tag rc
           environment:
