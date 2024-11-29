@@ -83,6 +83,7 @@ jobs:
             previous_tag=$(git describe --tags --abbrev=0 HEAD^)
             commits=$(git log $previous_tag..$current_tag --oneline)
             echo "$commits" > release_notes.md
+            RELEASE_BODY="$commits"
 
       - run:
           name: Debug Environment Variable
