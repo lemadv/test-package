@@ -1,33 +1,100 @@
-# This config was automatically generated from your source code
-# Stacks detected: deps:node:.
 version: 2.1
-orbs:
-  node: circleci/node@5
+
+executors:
+  node-executor:
+    docker:
+      - image: circleci/node:18
+
 jobs:
-  test-node:
-    # Install node dependencies and run tests
-    executor: node/default
+  pre-release:
+    executor: node-executor
     steps:
       - checkout
-      - node/install-packages:
-          cache-path: ~/project/node_modules
-          override-ci-command: npm install
+      
       - run:
-          name: Run tests
-          command: npm test --passWithNoTests
-  deploy:
-    # This is an example deploy job, not actually used by the workflow
-    docker:
-      - image: cimg/base:stable
-    steps:
-      # Replace this with steps to deploy to users
+          name: Set Up npm Cache
+          command: |
+            mkdir -p ~/.npm && echo "Setting up npm cache"
+      - restore_cache:
+          keys:
+            - npm-cache-{{ checksum "package-lock.json" }}
+      
       - run:
-          name: deploy
-          command: '#e.g. ./deploy.sh'
+          name: Install Dependencies
+          command: npm ci
+      
+      - save_cache:
+          paths:
+            - ~/.npm
+          key: npm-cache-{{ checksum "package-lock.json" }}
+
+      - run:
+          name: Configure Git
+          command: |
+            git config --global user.name "$CIRCLE_USERNAME"
+            git config --global user.email "$CIRCLE_USERNAME@users.noreply.github.com"
+
+      - run:
+          name: Get Next RC Version
+          command: |
+            set -e
+            CURRENT_VERSION=$(node -p "require('./package.json').version")
+            ALL_VERSIONS=$(npm view <<your-npm-package>> versions --json)
+            CURRENT_RC=$(echo $ALL_VERSIONS | jq -r '.[]' | grep "^${CURRENT_VERSION}-rc\." || true)
+            if [ -z "$CURRENT_RC" ]; then
+              NEXT_VERSION="${CURRENT_VERSION}-rc.1"
+            else
+              HIGHEST_RC=$(echo "$CURRENT_RC" | sort -V | tail -1)
+              NEXT_VERSION=$(npx semver "$HIGHEST_RC" --increment prerelease --preid rc)
+            fi
+            echo "export NEXT_VERSION=$NEXT_VERSION" >> $BASH_ENV
+            echo "Next RC version: $NEXT_VERSION"
+
+      - run:
+          name: Update Version in package.json
+          command: npm version $NEXT_VERSION --no-git-tag-version
+
+      - run:
+          name: Publish Pre-release to npm
+          command: npm publish --tag rc
+          environment:
+            NODE_AUTH_TOKEN: <<your-npm-token>>
+
+      - run:
+          name: Create and Push Git Tag
+          command: |
+            git tag v$NEXT_VERSION
+            git push origin v$NEXT_VERSION
+          environment:
+            GITHUB_TOKEN: <<your-github-token>>
+
+      - run:
+          name: Generate Release Notes
+          command: |
+            current_tag=$(git describe --tags)
+            previous_tag=$(git describe --tags --abbrev=0 HEAD^)
+            commits=$(git log $previous_tag..$current_tag --oneline)
+            echo "$commits" > release_notes.md
+
+      - run:
+          name: Create GitHub Release
+          command: |
+            curl -X POST https://api.github.com/repos/<<your-organization>>/<<your-repo>>/releases \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -d @- <<EOF
+            {
+              "tag_name": "v$NEXT_VERSION",
+              "name": "Release v$NEXT_VERSION",
+              "body": "$(cat release_notes.md)",
+              "draft": false,
+              "prerelease": true
+            }
+            EOF
+          environment:
+            GITHUB_TOKEN: <<your-github-token>>
+
 workflows:
-  build-and-test:
+  version: 2
+  pre-release-workflow:
     jobs:
-      - test-node
-    # - deploy:
-    #     requires:
-    #       - test-node
+      - pre-release

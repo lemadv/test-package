@@ -3,7 +3,7 @@ name: Pre-release Workflow
 on:
   push:
     branches:
-      - staging
+      - staging2
 
 jobs:
   pre-release:
