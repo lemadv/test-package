@@ -23,7 +23,7 @@ module.exports = {
   ],
 
   // Skip optional questions
-  skipQuestions: ["body", "footer"],
+  skipQuestions: [],
 
   // Default and required scopes/components
   scopes: [

@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node test.js"
+    "test": "node test.js",
+    "commit": "./node_modules/cz-customizable/standalone.js"
   },
   "keywords": [],
   "author": "Leandro",
@@ -36,7 +37,7 @@
   },
   "config": {
     "commitizen": {
-      "path": "./node_modules/cz-customizable"
+      "path": "node_modules/cz-customizable"
     }
   }
 }
