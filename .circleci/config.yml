@@ -57,7 +57,7 @@ jobs:
       - run:
           name: Debug Environment Variable
           command: |
-             echo "Variable is available: $MY_SECRET_VARIABLE"
+             echo "Variable is available: $NPM_TOKEN"
 
       - run:
           name: Publish Pre-release to npm
