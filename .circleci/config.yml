@@ -85,7 +85,6 @@ jobs:
           name: Print All Environment Variables
           command: printenv
 
-
       - run:
           name: Generate Release Notes
           shell: /bin/bash
@@ -166,21 +165,21 @@ jobs:
           shell: /bin/bash
           command: |
             # Debug token substitution
-            if [ -z "$GITHUB_TOKEN" ]; then
-              echo "❌ GITHUB_TOKEN is not set"
+            if [ -z "$RELEASE_NOTES" ]; then
+              echo "❌ RELEASE_NOTES is not set"
               exit 1
             else
-              echo "✅ GITHUB_TOKEN is set: ${GITHUB_TOKEN:0:4}***"
+              echo "✅ RELEASE_NOTES is available"
             fi
 
             # Debug other variables
             echo "NEXT_VERSION: $NEXT_VERSION"
-            echo "RELEASE_BODY: $NOTES"
+            echo "RELEASE_NOTES: $RELEASE_NOTES"
 
             # Generate payload
             PAYLOAD=$(jq -n --arg tag_name "v$NEXT_VERSION" \
                             --arg name "Release v$NEXT_VERSION" \
-                            --arg body "$NOTES" \
+                            --arg body "$RELEASE_NOTES" \
                             '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: true}')
             echo "Generated payload: $PAYLOAD"
 
