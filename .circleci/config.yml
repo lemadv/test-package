@@ -94,17 +94,23 @@ jobs:
       - run:
           name: Create GitHub Release
           command: |
-            # Read release notes into a variable
-            RELEASE_BODY=$(cat release_notes.md)
+            # Debug: Ensure variables are correctly populated
+            echo "Using token: ${GITHUB_TOKEN:0:4}***"
+            echo "NEXT_VERSION: $NEXT_VERSION"
+            echo "RELEASE_BODY: $RELEASE_BODY"
 
-            # Use curl to create the GitHub release
+            # Verify JSON structure using jq
+            PAYLOAD=$(jq -n --arg tag_name "v$NEXT_VERSION" \
+                            --arg name "Release v$NEXT_VERSION" \
+                            --arg body "$RELEASE_BODY" \
+                            '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: true}')
+            echo "Generated payload: $PAYLOAD"
+
+            # Execute the curl command
             curl -X POST \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "$(jq -n --arg tag_name "v$NEXT_VERSION" \
-                              --arg name "Release v$NEXT_VERSION" \
-                              --arg body "$RELEASE_BODY" \
-                              '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: true}')" \
+              -d "$PAYLOAD" \
               https://api.github.com/repos/lemadv/test-package/releases
           environment:
             GITHUB_TOKEN: $GITHUB_TOKEN
