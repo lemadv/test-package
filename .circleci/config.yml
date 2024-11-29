@@ -108,16 +108,20 @@ jobs:
               COMMITS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
                 "https://api.github.com/repos/lemadv/test-package/compare/$PREVIOUS_TAG...$CURRENT_TAG")
 
-              # Group commits by component
+              # Group commits by component, handle missing values
               GROUPED_COMMITS=$(echo "$COMMITS" | jq -r '
-                .commits | group_by(.commit.message | capture("^\\w+\\(([^)]+)\\):").component) | 
+                .commits | map({
+                  message: .commit.message,
+                  sha: .sha,
+                  url: .html_url
+                }) | group_by(.message | capture("^\\w+\\((?<component>[^)]+)\\):").component // "general") | 
                 map({
-                  component: .[0].commit.message | capture("^\\w+\\(([^)]+)\\):").component,
+                  component: (.[0].message | capture("^\\w+\\((?<component>[^)]+)\\):").component // "general"),
                   commits: map({
-                    type: .commit.message | capture("^\\w+").type,
-                    description: .commit.message | capture("^\\w+\\([^)]*\\):\\s*(?<desc>.+)").desc,
+                    type: (.message | capture("^(\\w+)").type // "misc"),
+                    description: (.message | capture("^\\w+\\([^)]*\\):\\s*(?<desc>.+)").desc // .message),
                     hash: .sha[0:7],
-                    url: .html_url
+                    url: .url
                   })
                 })
               ')
@@ -130,13 +134,9 @@ jobs:
                 COMPONENT=$(echo "$group" | jq -r '.component')
                 COMMITS=$(echo "$group" | jq -c '.commits[]')
 
-                echo "### $COMPONENT" >> release_notes.md
-                RELEASE_NOTES+="### $COMPONENT\n\n"
-                echo "" >> release_notes.md
+                echo "### ${COMPONENT^}" >> release_notes.md
                 echo "| Type | Commit | Description |" >> release_notes.md
-                RELEASE_NOTES+="| Type | Commit | Description |\n"
                 echo "|------|--------|-------------|" >> release_notes.md
-                RELEASE_NOTES+="|------|--------|-------------|\n"
 
                 echo "$COMMITS" | jq -c '.' | while read -r commit; do
                   TYPE=$(echo "$commit" | jq -r '.type')
@@ -145,19 +145,19 @@ jobs:
                   DESCRIPTION=$(echo "$commit" | jq -r '.description')
 
                   echo "| $TYPE | [$HASH]($URL) | $DESCRIPTION |" >> release_notes.md
-                  RELEASE_NOTES+="| $TYPE | [$HASH]($URL) | $DESCRIPTION |\n"
                 done
 
                 echo "" >> release_notes.md
-                RELEASE_NOTES+="\n"
               done
+
+              RELEASE_NOTES=$(cat release_notes.md | sed ':a;N;$!ba;s/\n/\\n/g')
             fi
 
             echo "Generated Release Notes:"
             cat release_notes.md
 
             # Save RELEASE_NOTES for use in the next step
-            echo "export RELEASE_NOTES=\"$(cat release_notes.md | sed ':a;N;$!ba;s/\n/\\n/g')\"" >> $BASH_ENV
+            echo "export RELEASE_NOTES=\"$RELEASE_NOTES\"" >> $BASH_ENV
 
       - run:
           name: Create GitHub Release
