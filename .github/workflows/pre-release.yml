@@ -118,18 +118,20 @@ jobs:
       
               // Match the format [type](component): description
               const match = message.match(/^\[(\w+)\]\(([\w-]+)\): (.+)$/);
-              if (match) {
-                const [, type, component, description] = match;
-                if (!groups[component]) {
-                  groups[component] = [];
-                }
-                groups[component].push({
-                  type,
-                  hash: commit.sha.slice(0, 7),
-                  url: `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${commit.sha}`,
-                  description,
-                });
+              const type = match ? match[1] : "-";
+              const component = match ? match[2] : "-";
+              const description = match ? match[3] : message;
+      
+              if (!groups[component]) {
+                groups[component] = [];
               }
+              groups[component].push({
+                type,
+                hash: commit.sha.slice(0, 7),
+                url: `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${commit.sha}`,
+                description,
+              });
+      
               return groups;
             }, {});
       
@@ -149,7 +151,6 @@ jobs:
             console.log(notes);
       
             core.setOutput("notes", notes.trim());
-        
         
 
 
