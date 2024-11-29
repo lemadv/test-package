@@ -76,16 +76,20 @@ jobs:
             const { data: tags } = await github.rest.repos.listTags({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              per_page: 2
+              per_page: 10
             });
 
             if (tags.length < 2) {
+              console.log("This is the first release. No previous tags found.");
               core.setOutput("notes", "This is the first release. No previous commits to compare.");
               return;
             }
 
             const currentTag = tags[0].name;
             const previousTag = tags[1].name;
+
+            console.log(`Current Tag: ${currentTag}`);
+            console.log(`Previous Tag: ${previousTag}`);
 
             const { data: commits } = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
@@ -94,28 +98,43 @@ jobs:
               head: currentTag
             });
 
+            // Group commits by `component`
             const groupedCommits = commits.commits.reduce((groups, commit) => {
               const message = commit.commit.message;
-              const match = message.match(/^(feat|fix|docs|chore|test|refactor|style|perf|build|ci|multiple)(:|\/|-|\s)/i);
-              const type = match ? match[1].toLowerCase() : 'others';
-              if (!groups[type]) {
-                groups[type] = [];
+
+              // Match the format [type](component): description
+              const match = message.match(/^\[(\w+)\]\(([\w-]+)\): (.+)$/);
+              if (match) {
+                const [, , component, description] = match;
+                if (!groups[component]) {
+                  groups[component] = [];
+                }
+                groups[component].push({
+                  hash: commit.sha.slice(0, 7),
+                  type: match[1],
+                  description,
+                });
               }
-              groups[type].push({
-                hash: commit.sha.slice(0, 7),
-                message: message.replace(/\n.*/, ''), // First line only
-              });
               return groups;
             }, {});
 
+            // Generate Markdown Table for Each Component
             let notes = '';
-            for (const [type, commits] of Object.entries(groupedCommits)) {
-              notes += `### ${type}\n`;
-              notes += commits.map(commit => `- ${type} - ${commit.hash} ${commit.message}`).join('\n');
-              notes += '\n\n';
+            for (const [component, commits] of Object.entries(groupedCommits)) {
+              notes += `### ${component}\n\n`;
+              notes += '| Commit | Description |\n';
+              notes += '|--------|-------------|\n';
+              commits.forEach(({ hash, type, description }) => {
+                notes += `| ![${hash}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${hash}) **[${type}](${hash})** | ${description} |\n`;
+              });
+              notes += '\n';
             }
 
+            console.log("Generated Release Notes:");
+            console.log(notes);
+
             core.setOutput("notes", notes.trim());
+
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
