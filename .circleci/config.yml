@@ -89,17 +89,15 @@ jobs:
           name: Generate Release Notes
           shell: /bin/bash
           command: |
-            set -e
+            set -e  # Exit immediately if a command exits with a non-zero status
 
             # Fetch the latest two tags
             TAGS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/lemadv/test-package/tags?per_page=2")
-            
             TAG_COUNT=$(echo "$TAGS" | jq 'length')
-            
+
             if [ "$TAG_COUNT" -lt 2 ]; then
               echo "This is the first release. No previous commits to compare." > release_notes.md
-              RELEASE_NOTES="This is the first release. No previous commits to compare."
             else
               CURRENT_TAG=$(echo "$TAGS" | jq -r '.[0].name')
               PREVIOUS_TAG=$(echo "$TAGS" | jq -r '.[1].name')
@@ -108,33 +106,28 @@ jobs:
               COMMITS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
                 "https://api.github.com/repos/lemadv/test-package/compare/$PREVIOUS_TAG...$CURRENT_TAG")
 
-              # Group commits by component, handle missing values
+              # Group commits by component
               GROUPED_COMMITS=$(echo "$COMMITS" | jq -r '
-                .commits | map({
-                  message: .commit.message,
-                  sha: .sha,
-                  url: .html_url
-                }) | group_by(.message | capture("^\\w+\\((?<component>[^)]+)\\):").component // "general") | 
+                .commits | group_by(.commit.message | capture("^\\w+\\(([^)]+)\\):").component) | 
                 map({
-                  component: (.[0].message | capture("^\\w+\\((?<component>[^)]+)\\):").component // "general"),
+                  component: .[0].commit.message | capture("^\\w+\\(([^)]+)\\):").component,
                   commits: map({
-                    type: (.message | capture("^(\\w+)").type // "misc"),
-                    description: (.message | capture("^\\w+\\([^)]*\\):\\s*(?<desc>.+)").desc // .message),
+                    type: .commit.message | capture("^\\w+").type,
+                    description: .commit.message | capture("^\\w+\\([^)]*\\):\\s*(?<desc>.+)").desc,
                     hash: .sha[0:7],
-                    url: .url
+                    url: .html_url
                   })
                 })
               ')
 
               # Generate Markdown Notes
-              echo "" > release_notes.md  # Clear the file
-              RELEASE_NOTES=""
-              
+              : > release_notes.md  # Clear the file
               echo "$GROUPED_COMMITS" | jq -c '.[]' | while read -r group; do
                 COMPONENT=$(echo "$group" | jq -r '.component')
                 COMMITS=$(echo "$group" | jq -c '.commits[]')
 
-                echo "### ${COMPONENT^}" >> release_notes.md
+                echo "### $COMPONENT" >> release_notes.md
+                echo "" >> release_notes.md
                 echo "| Type | Commit | Description |" >> release_notes.md
                 echo "|------|--------|-------------|" >> release_notes.md
 
@@ -149,15 +142,13 @@ jobs:
 
                 echo "" >> release_notes.md
               done
-
-              RELEASE_NOTES=$(cat release_notes.md | sed ':a;N;$!ba;s/\n/\\n/g')
             fi
 
             echo "Generated Release Notes:"
             cat release_notes.md
 
-            # Save RELEASE_NOTES for use in the next step
-            echo "export RELEASE_NOTES=\"$RELEASE_NOTES\"" >> $BASH_ENV
+            # Export notes for the next step
+            echo "export RELEASE_NOTES=$(<release_notes.md)" >> $BASH_ENV
 
       - run:
           name: Create GitHub Release
