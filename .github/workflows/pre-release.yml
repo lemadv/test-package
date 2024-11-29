@@ -125,7 +125,8 @@ jobs:
               notes += '| Commit | Description |\n';
               notes += '|--------|-------------|\n';
               commits.forEach(({ hash, type, description }) => {
-                notes += `| ![${hash}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${hash}) **[${type}](${hash})** | ${description} |\n`;
+                const imgUrl = `https://camo.githubusercontent.com/${hash}?text=${hash}`;
+                notes += `| ![${hash}](${imgUrl}) **[${type}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${hash})** | ${description} |\n`;
               });
               notes += '\n';
             }
