@@ -77,15 +77,6 @@ jobs:
             git push origin v$NEXT_VERSION
 
       - run:
-          name: Generate Release Notes
-          command: |
-            current_tag=$(git describe --tags)
-            previous_tag=$(git describe --tags --abbrev=0 HEAD^)
-            commits=$(git log $previous_tag..$current_tag --oneline)
-            echo "export RELEASE_BODY=\"$commits\"" >> $BASH_ENV
-            echo "$commits" > release_notes.md
-
-      - run:
           name: Debug Environment Variable
           command: |
              echo "Variable is available: $GITHUB_TOKEN"
@@ -93,6 +84,82 @@ jobs:
       - run:
           name: Print All Environment Variables
           command: printenv
+
+
+      - run:
+          name: Generate Release Notes
+          shell: /bin/bash
+          command: |
+            # Debug token substitution
+            if [ -z "$GITHUB_TOKEN" ]; then
+              echo "❌ GITHUB_TOKEN is not set"
+              exit 1
+            else
+              echo "✅ GITHUB_TOKEN is set: ${GITHUB_TOKEN:0:4}***"
+            fi
+
+            # Fetch the latest two tags
+            TAGS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/lemadv/test-package/tags?per_page=2")
+
+            TAG_COUNT=$(echo "$TAGS" | jq 'length')
+            if [ "$TAG_COUNT" -lt 2 ]; then
+              echo "This is the first release. No previous commits to compare."
+              NOTES="This is the first release. No previous commits to compare."
+            else
+              CURRENT_TAG=$(echo "$TAGS" | jq -r '.[0].name')
+              PREVIOUS_TAG=$(echo "$TAGS" | jq -r '.[1].name')
+
+              echo "Current tag: $CURRENT_TAG"
+              echo "Previous tag: $PREVIOUS_TAG"
+
+              # Fetch commits between tags
+              COMMITS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+                "https://api.github.com/repos/lemadv/test-package/compare/$PREVIOUS_TAG...$CURRENT_TAG")
+
+              # Group commits by component
+              GROUPED_COMMITS=$(echo "$COMMITS" | jq -r '
+                .commits | group_by(.commit.message | capture("^\\w+\\(([^)]+)\\):").component) | 
+                map({
+                  component: .[0].commit.message | capture("^\\w+\\(([^)]+)\\):").component,
+                  commits: map({
+                    type: .commit.message | capture("^\\w+").type,
+                    description: .commit.message | capture("^\\w+\\([^)]*\\):\\s*(?<desc>.+)").desc,
+                    hash: .sha[0:7],
+                    url: .html_url
+                  })
+                })
+              ')
+
+              # Generate Markdown Notes
+              NOTES=""
+              echo "$GROUPED_COMMITS" | jq -c '.[]' | while read -r group; do
+                COMPONENT=$(echo "$group" | jq -r '.component')
+                COMMITS=$(echo "$group" | jq -c '.commits[]')
+
+                NOTES+="### $COMPONENT\n\n"
+                NOTES+="| Type | Commit | Description |\n"
+                NOTES+="|------|--------|-------------|\n"
+
+                echo "$COMMITS" | jq -c '.' | while read -r commit; do
+                  TYPE=$(echo "$commit" | jq -r '.type')
+                  HASH=$(echo "$commit" | jq -r '.hash')
+                  URL=$(echo "$commit" | jq -r '.url')
+                  DESCRIPTION=$(echo "$commit" | jq -r '.description')
+
+                  NOTES+="| $TYPE | [$HASH]($URL) | $DESCRIPTION |\n"
+                done
+
+                NOTES+="\n"
+              done
+            fi
+
+            echo "Generated Release Notes:"
+            echo "$NOTES"
+
+            # Save to environment and file
+            echo "export RELEASE_NOTES=\"$NOTES\"" >> $BASH_ENV
+            echo "$NOTES" > release_notes.md
 
       - run:
           name: Create GitHub Release
@@ -108,12 +175,12 @@ jobs:
 
             # Debug other variables
             echo "NEXT_VERSION: $NEXT_VERSION"
-            echo "RELEASE_BODY: $RELEASE_BODY"
+            echo "RELEASE_BODY: $NOTES"
 
             # Generate payload
             PAYLOAD=$(jq -n --arg tag_name "v$NEXT_VERSION" \
                             --arg name "Release v$NEXT_VERSION" \
-                            --arg body "$RELEASE_BODY" \
+                            --arg body "$NOTES" \
                             '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: true}')
             echo "Generated payload: $PAYLOAD"
 
