@@ -42,7 +42,7 @@ const axios = require('axios');
       const message = commit.commit.message;
 
       // Match the format type(component): description
-      const match = message.match(/^(\w+)\((.+?)\):\s*(.+)$/);
+      const match = message.match(/^(\w+)\(([^)]+)\):\s*(.+)$/);
       const type = match ? match[1] : '-';
       const component = match ? match[2] : '-';
       const description = match ? match[3] : message;
