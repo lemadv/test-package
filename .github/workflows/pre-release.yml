@@ -87,9 +87,6 @@ jobs:
             const currentTag = tags[0].name;
             const previousTag = tags[1].name;
 
-            console.log(`Current Tag: ${currentTag}`);
-            console.log(`Previous Tag: ${previousTag}`);
-
             const { data: commits } = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
