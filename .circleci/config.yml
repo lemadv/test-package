@@ -83,8 +83,8 @@ jobs:
               -H "Authorization: token $GITHUB_TOKEN" \
               -d @- <<EOF
             {
-              "tag_name": "v$NEXT_VERSION",
-              "name": "Release v$NEXT_VERSION",
+              "tag_name": "v${{ env.next_version }}",
+              "name": "Release v${{ env.next_version }}",
               "body": "$(cat release_notes.md)",
               "draft": false,
               "prerelease": true
