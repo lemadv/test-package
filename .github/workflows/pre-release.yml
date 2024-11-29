@@ -96,7 +96,7 @@ jobs:
 
             const groupedCommits = commits.commits.reduce((groups, commit) => {
               const message = commit.commit.message;
-              const match = message.match(/^(feat|fix|docs|chore|test|refactor|style|perf|build|ci|multiple)(?:\s|:|-)/i);
+              const match = message.match(/^(feat|fix|docs|chore|test|refactor|style|perf|build|ci|multiple)(:|\/|-|\s)/i);
               const type = match ? match[1].toLowerCase() : 'others';
               if (!groups[type]) {
                 groups[type] = [];
