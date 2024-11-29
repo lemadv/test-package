@@ -1,5 +1,23 @@
+const fs = require("fs");
+const path = require("path");
+
+// Function to dynamically generate scopes
+function getScopes() {
+  const baseDir = "./src"; // Adjust to your folder path
+  try {
+    const result = fs
+      .readdirSync(baseDir)
+      .filter((file) => fs.statSync(path.join(baseDir, file)).isDirectory())
+      .map((folder) => ({ name: folder })); // Format as Commitizen scopes
+
+    return [...result, "Other"];
+  } catch (error) {
+    console.error("Error reading scopes:", error);
+    return []; // Return empty array if an error occurs
+  }
+}
+
 module.exports = {
-  // List of types
   types: [
     { value: "feat", name: "feat:     A new feature" },
     { value: "fix", name: "fix:      A bug fix" },
@@ -22,26 +40,26 @@ module.exports = {
     },
   ],
 
-  // Skip optional questions
-  skipQuestions: [],
+
+  skipQuestions: ["customScope", "body", "breaking", "footer"],
 
   // Default and required scopes/components
-  scopes: [
-    { name: "button" },
-    { name: "card" },
-    { name: "layout" },
-    { name: "api" },
-    { name: "docs" },
-  ],
-
+  scopes: getScopes(),
+  askForBreakingChangeFirst: false,
   // Default commit message format
   subjectLimit: 72,
-  allowCustomScopes: true,
+  allowCustomScopes: false,
   allowBreakingChanges: ["feat", "fix"], // Optional breaking change prompt
   messageFormat: (answers) => {
     const type = answers.type || "-";
     const scope = answers.scope || "-";
     const subject = answers.subject || "-";
     return `[${type}](${scope}): ${subject}`;
+  },
+  messages: {
+    type: "Select the type of change that you're committing:",
+    scope: "\nScope of this change:",
+    // used if allowCustomScopes is true
+    subject: "Write the description of the change:\n",
   },
 };
