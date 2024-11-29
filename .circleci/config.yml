@@ -94,19 +94,26 @@ jobs:
       - run:
           name: Create GitHub Release
           command: |
-            # Debug: Ensure variables are correctly populated
-            echo "Using token: ${GITHUB_TOKEN:0:4}***"
+            # Debug token substitution
+            if [ -z "$GITHUB_TOKEN" ]; then
+              echo "❌ GITHUB_TOKEN is not set"
+              exit 1
+            else
+              echo "✅ GITHUB_TOKEN is set: ${GITHUB_TOKEN:0:4}***"
+            fi
+
+            # Debug other variables
             echo "NEXT_VERSION: $NEXT_VERSION"
             echo "RELEASE_BODY: $RELEASE_BODY"
 
-            # Verify JSON structure using jq
+            # Generate payload
             PAYLOAD=$(jq -n --arg tag_name "v$NEXT_VERSION" \
                             --arg name "Release v$NEXT_VERSION" \
                             --arg body "$RELEASE_BODY" \
                             '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: true}')
             echo "Generated payload: $PAYLOAD"
 
-            # Execute the curl command
+            # Create release
             curl -X POST \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Content-Type: application/json" \
