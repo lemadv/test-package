@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prepare": "husky",
     "test": "node test.js",
     "commit": "./node_modules/cz-customizable/standalone.js"
   },
@@ -33,7 +34,8 @@
   },
   "devDependencies": {
     "commitizen": "^4.3.1",
-    "cz-customizable": "^7.2.1"
+    "cz-customizable": "^7.2.1",
+    "husky": "^9.1.7"
   },
   "config": {
     "commitizen": {

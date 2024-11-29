@@ -1,0 +1,17 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+regex="^(\w+)\((.+?)\):\s*(.+)$"
+
+commit_message=$(cat "$1")
+
+if ! echo "$commit_message" | grep -qE "$regex"; then
+  echo "❌ Invalid commit message format."
+  echo ""
+  echo "Expected format: type(component): description"
+  echo "Example: feat(button): Add ripple effect"
+  echo ""
+  exit 1
+fi
+
+echo "✅ Commit message format is valid."
