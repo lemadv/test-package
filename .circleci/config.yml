@@ -89,65 +89,15 @@ jobs:
           name: Generate Release Notes
           shell: /bin/bash
           command: |
-            set -e  # Exit immediately if a command exits with a non-zero status
 
-            # Fetch the latest two tags
-            TAGS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/lemadv/test-package/tags?per_page=2")
-            TAG_COUNT=$(echo "$TAGS" | jq 'length')
+            # Run the Node.js script to generate release notes
+            node generate-release-notes.js
 
-            if [ "$TAG_COUNT" -lt 2 ]; then
-              echo "This is the first release. No previous commits to compare." > release_notes.md
-            else
-              CURRENT_TAG=$(echo "$TAGS" | jq -r '.[0].name')
-              PREVIOUS_TAG=$(echo "$TAGS" | jq -r '.[1].name')
-
-              # Fetch commits between tags
-              COMMITS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-                "https://api.github.com/repos/lemadv/test-package/compare/$PREVIOUS_TAG...$CURRENT_TAG")
-
-              # Group commits by component
-              GROUPED_COMMITS=$(echo "$COMMITS" | jq -r '
-                .commits | group_by(.commit.message | capture("^\\w+\\(([^)]+)\\):").component) | 
-                map({
-                  component: .[0].commit.message | capture("^\\w+\\(([^)]+)\\):").component,
-                  commits: map({
-                    type: .commit.message | capture("^\\w+").type,
-                    description: .commit.message | capture("^\\w+\\([^)]*\\):\\s*(?<desc>.+)").desc,
-                    hash: .sha[0:7],
-                    url: .html_url
-                  })
-                })
-              ')
-
-              # Generate Markdown Notes
-              : > release_notes.md  # Clear the file
-              echo "$GROUPED_COMMITS" | jq -c '.[]' | while read -r group; do
-                COMPONENT=$(echo "$group" | jq -r '.component')
-                COMMITS=$(echo "$group" | jq -c '.commits[]')
-
-                echo "### $COMPONENT" >> release_notes.md
-                echo "" >> release_notes.md
-                echo "| Type | Commit | Description |" >> release_notes.md
-                echo "|------|--------|-------------|" >> release_notes.md
-
-                echo "$COMMITS" | jq -c '.' | while read -r commit; do
-                  TYPE=$(echo "$commit" | jq -r '.type')
-                  HASH=$(echo "$commit" | jq -r '.hash')
-                  URL=$(echo "$commit" | jq -r '.url')
-                  DESCRIPTION=$(echo "$commit" | jq -r '.description')
-
-                  echo "| $TYPE | [$HASH]($URL) | $DESCRIPTION |" >> release_notes.md
-                done
-
-                echo "" >> release_notes.md
-              done
-            fi
-
-            echo "Generated Release Notes:"
+            # Debug: Show the generated release notes
+            echo "Generated release notes:"
             cat release_notes.md
 
-            # Export notes for the next step
+            # Export release notes as an environment variable
             echo "export RELEASE_NOTES=$(<release_notes.md)" >> $BASH_ENV
 
       - run:
