@@ -75,8 +75,6 @@ jobs:
           command: |
             git tag v$NEXT_VERSION
             git push origin v$NEXT_VERSION
-          environment:
-            GITHUB_TOKEN: $GITHUB_TOKEN
 
       - run:
           name: Generate Release Notes
@@ -90,6 +88,10 @@ jobs:
           name: Debug Environment Variable
           command: |
              echo "Variable is available: $GITHUB_TOKEN"
+
+      - run:
+          name: Print All Environment Variables
+          command: printenv
 
       - run:
           name: Create GitHub Release
@@ -120,8 +122,6 @@ jobs:
               -H "Content-Type: application/json" \
               -d "$PAYLOAD" \
               https://api.github.com/repos/lemadv/test-package/releases
-          environment:
-            GITHUB_TOKEN: $GITHUB_TOKEN
 
 workflows:
   version: 2
