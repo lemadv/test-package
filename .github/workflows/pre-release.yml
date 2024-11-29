@@ -93,7 +93,7 @@ jobs:
             const { data: commits } = await github.rest.repos.compareCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              base: currentTag,
+              base: previousTag,
               head: currentTag
             });
 
