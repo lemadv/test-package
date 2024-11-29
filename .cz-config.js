@@ -10,7 +10,7 @@ function getScopes() {
       .filter((file) => fs.statSync(path.join(baseDir, file)).isDirectory())
       .map((folder) => ({ name: folder })); // Format as Commitizen scopes
 
-    return [...result, "Other"];
+    return [...result, "Global styles", "Github Actions", "Other"];
   } catch (error) {
     console.error("Error reading scopes:", error);
     return []; // Return empty array if an error occurs
