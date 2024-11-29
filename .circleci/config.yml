@@ -89,6 +89,8 @@ jobs:
           name: Generate Release Notes
           shell: /bin/bash
           command: |
+            set -e  # Exit immediately if a command exits with a non-zero status
+
             # Debug token substitution
             if [ -z "$GITHUB_TOKEN" ]; then
               echo "❌ GITHUB_TOKEN is not set"
@@ -98,13 +100,17 @@ jobs:
             fi
 
             # Fetch the latest two tags
+            echo "Fetching latest two tags from GitHub..."
             TAGS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/lemadv/test-package/tags?per_page=2")
+            echo "Fetched tags: $TAGS"
 
             TAG_COUNT=$(echo "$TAGS" | jq 'length')
+            echo "Number of tags fetched: $TAG_COUNT"
+
             if [ "$TAG_COUNT" -lt 2 ]; then
               echo "This is the first release. No previous commits to compare."
-              NOTES="This is the first release. No previous commits to compare."
+              echo "This is the first release. No previous commits to compare." > release_notes.md
             else
               CURRENT_TAG=$(echo "$TAGS" | jq -r '.[0].name')
               PREVIOUS_TAG=$(echo "$TAGS" | jq -r '.[1].name')
@@ -113,10 +119,13 @@ jobs:
               echo "Previous tag: $PREVIOUS_TAG"
 
               # Fetch commits between tags
+              echo "Fetching commits between $PREVIOUS_TAG and $CURRENT_TAG..."
               COMMITS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
                 "https://api.github.com/repos/lemadv/test-package/compare/$PREVIOUS_TAG...$CURRENT_TAG")
+              echo "Fetched commits: $COMMITS"
 
               # Group commits by component
+              echo "Grouping commits by component..."
               GROUPED_COMMITS=$(echo "$COMMITS" | jq -r '
                 .commits | group_by(.commit.message | capture("^\\w+\\(([^)]+)\\):").component) | 
                 map({
@@ -129,16 +138,20 @@ jobs:
                   })
                 })
               ')
+              echo "Grouped commits: $GROUPED_COMMITS"
 
-              # Generate Markdown Notes
-              NOTES=""
+              # Generate Markdown Notes into a file
+              echo "Generating Markdown notes..."
+              : > release_notes.md  # Clear the file
               echo "$GROUPED_COMMITS" | jq -c '.[]' | while read -r group; do
                 COMPONENT=$(echo "$group" | jq -r '.component')
                 COMMITS=$(echo "$group" | jq -c '.commits[]')
 
-                NOTES+="### $COMPONENT\n\n"
-                NOTES+="| Type | Commit | Description |\n"
-                NOTES+="|------|--------|-------------|\n"
+                echo "Processing component: $COMPONENT"
+                echo "### $COMPONENT" >> release_notes.md
+                echo "" >> release_notes.md
+                echo "| Type | Commit | Description |" >> release_notes.md
+                echo "|------|--------|-------------|" >> release_notes.md
 
                 echo "$COMMITS" | jq -c '.' | while read -r commit; do
                   TYPE=$(echo "$commit" | jq -r '.type')
@@ -146,18 +159,19 @@ jobs:
                   URL=$(echo "$commit" | jq -r '.url')
                   DESCRIPTION=$(echo "$commit" | jq -r '.description')
 
-                  NOTES+="| $TYPE | [$HASH]($URL) | $DESCRIPTION |\n"
+                  echo "| $TYPE | [$HASH]($URL) | $DESCRIPTION |" >> release_notes.md
                 done
 
-                NOTES+="\n"
+                echo "" >> release_notes.md
               done
             fi
 
             echo "Generated Release Notes:"
-            echo "$NOTES"
+            cat release_notes.md
 
             # Save to environment and file
-            echo "export RELEASE_NOTES=\"$NOTES\"" >> $BASH_ENV
+            echo "Exporting release notes to environment..."
+            echo "export RELEASE_NOTES=\"$(cat release_notes.md | tr '\n' ' ')\"" >> $BASH_ENV
             echo "$NOTES" > release_notes.md
 
       - run:
