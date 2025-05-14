@@ -141,7 +141,7 @@ jobs:
           name: Generate changelog summary with OpenAI
           command: |
             git fetch origin master
-            DIFF=$(git diff origin/master...HEAD)
+            DIFF=$(git diff origin/staging...HEAD)
 
             if [ -z "$DIFF" ]; then
               echo "No relevant changes since master."
