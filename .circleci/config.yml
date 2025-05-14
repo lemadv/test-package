@@ -137,49 +137,71 @@ jobs:
     steps:
       - checkout
 
+      # STEP 1 – discover PR number & base branch
       - run:
-          name: Generate changelog summary with OpenAI
+          name: "Detect PR metadata"
           command: |
             set -euo pipefail
 
-            git fetch origin staging
-            DIFF=$(git diff --name-only origin/staging...HEAD)
-
-            if [ -z "$DIFF" ]; then
-              echo "No relevant changes since staging."
-              exit 0
+            if [ -z "${CIRCLE_PULL_REQUEST:-}" ]; then
+              echo "❌  Not a PR build – skipping"; exit 0
             fi
+            PR_NUM=$(echo "$CIRCLE_PULL_REQUEST" | grep -o '[0-9]*$')
 
-            jq -n --arg diff "$DIFF" '
+            data=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM")
+
+            BASE_BRANCH=$(echo "$data" | jq -r .base.ref)
+            echo "PR #$PR_NUM → base = $BASE_BRANCH"
+            echo "PR_NUM=$PR_NUM"     >> $BASH_ENV
+            echo "BASE_BRANCH=$BASE_BRANCH" >> $BASH_ENV
+
+      # STEP 2 – get compact file list via GitHub API (1 request/page)
+      - run:
+          name: "Fetch changed-file list"
+          command: |
+            source $BASH_ENV
+            curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM/files?per_page=100" \
+              | jq -r '[ .[] | {file:.filename, add:.additions, del:.deletions} ]' \
+              > files.json                              # ≤ ~10 KB for 100 files
+
+      # STEP 3 – build OpenAI prompt safely
+      - run:
+          name: "Call OpenAI"
+          command: |
+            jq -n --slurpfile f files.json '
               {
                 model: "gpt-4o-mini",
                 temperature: 0.3,
                 messages: [
-                  {role: "system",
-                  content: "You are a senior frontend engineer maintaining a changelog. Generate a clear markdown list grouped by component or config file."},
-                  {role: "user",
-                  content: "Here are the changed files:\n\n" + $diff}
+                  {
+                    role: "system",
+                    content: "You are a senior engineer. Summarise the PR as a markdown bullet list, grouping by component or config area."
+                  },
+                  {
+                    role: "user",
+                    content: ("Changed files (with +/– lines):\n\n" + ($f[0] | map("- " + .file + " (+" + (.add|tostring) + "/-" + (.del|tostring) + ")") | join("\n")))
+                  }
                 ]
               }' > payload.json
 
-            SUMMARY=$(curl -s \
+            SUMMARY=$(curl -sS \
               -H "Authorization: Bearer $OPENAI_API_KEY" \
               -H "Content-Type: application/json" \
               --data @payload.json \
-              https://api.openai.com/v1/chat/completions |
-              jq -r '.choices[0].message.content')
+              https://api.openai.com/v1/chat/completions \
+              | jq -r '.choices[0].message.content')
 
             if [ -z "$SUMMARY" ] || [ "$SUMMARY" = "null" ]; then
-              echo "❌ OpenAI call failed"; exit 1
+              echo "❌ OpenAI call failed"; cat payload.json; exit 1
             fi
+            echo "----- summary -----"
+            echo "$SUMMARY"
+            echo "-------------------"
 
-            node scripts/prepend-changelog.js "$SUMMARY"
-
-            git config user.name  "ci-bot"
-            git config user.email "ci@example.com"
-            git add CHANGELOG.md
-            git commit -m "chore: update changelog [skip ci]" || echo "No changelog changes to commit"
-            git push origin "$CIRCLE_BRANCH"
+            # save for downstream jobs or slack step
+            echo "$SUMMARY" > pr_summary.md
 workflows:
   version: 2
   pre-release-workflow:
