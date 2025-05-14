@@ -169,6 +169,11 @@ jobs:
               }' | jq -r '.choices[0].message.content')
 
             node scripts/prepend-changelog.js "$SUMMARY"
+
+            git config user.name  "ci-bot" && git config user.email "ci@example.com"
+            git add CHANGELOG.md
+            git commit -m "chore: update changelog [skip ci]"
+            git push origin $CIRCLE_BRANCH
 workflows:
   version: 2
   pre-release-workflow:
