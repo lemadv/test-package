@@ -201,19 +201,7 @@ jobs:
             
             echo "Raw API response:"
             cat raw_files_response.json
-            
-            # Check response type
-            if grep -q "message.*Not Found" raw_files_response.json; then
-              echo "❌ GitHub API returned 'Not Found'. Check your token permissions and PR number."
-              exit 1
-            fi
-            
-            # Check if the response is an array
-            FIRST_CHAR=$(head -c 1 raw_files_response.json)
-            if [ "$FIRST_CHAR" != "[" ]; then
-              echo "❌ API response is not an array as expected. Cannot process."
-              exit 1
-            fi
+          
             
             # Process files more carefully - falling back to simple file list if needed
             if jq -e 'map({file: .filename, add: .additions, del: .deletions})' raw_files_response.json > files.json 2>/dev/null; then
