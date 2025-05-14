@@ -140,6 +140,7 @@ jobs:
       - run:
           name: Generate changelog summary with OpenAI
           command: |
+            echo "Using OPENAI_API_KEY=$OPENAI_API_KEY"
             git fetch origin master
             DIFF=$(git diff origin/staging...HEAD)
 
