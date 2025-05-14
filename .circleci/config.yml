@@ -163,10 +163,24 @@ jobs:
           name: "Fetch changed-file list"
           command: |
             source $BASH_ENV
+            # Save raw API response for debugging
             curl -s -H "Authorization: token $GITHUB_TOKEN" \
               "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM/files?per_page=100" \
-              | jq -r '[ .[] | {file:.filename, add:.additions, del:.deletions} ]' \
-              > files.json
+              > raw_files_response.json
+            
+            # Check if the response is valid JSON
+            if ! jq empty raw_files_response.json 2>/dev/null; then
+              echo "❌ Invalid JSON response from GitHub API:"
+              cat raw_files_response.json
+              exit 1
+            fi
+            
+            # Process the valid JSON response
+            jq -r 'map({file: .filename, add: .additions, del: .deletions})' raw_files_response.json > files.json
+            
+            # Verify files.json was created properly
+            echo "Generated files.json content:"
+            cat files.json
 
       # STEP 3 – build OpenAI prompt and get summary
       - run:
