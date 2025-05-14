@@ -149,10 +149,9 @@ jobs:
             
             echo "CIRCLE_PULL_REQUEST: ${CIRCLE_PULL_REQUEST}"
             
-            # Use GitHub-specific repo details if set in environment variables, 
-            # otherwise fall back to CircleCI project values
-            GITHUB_OWNER=${GITHUB_OWNER:-$CIRCLE_PROJECT_USERNAME}
-            GITHUB_REPO=${GITHUB_REPO:-$CIRCLE_PROJECT_REPONAME}
+            # Hardcode correct GitHub repository information
+            GITHUB_OWNER="lemadev"
+            GITHUB_REPO="test-package"
             
             echo "Using GitHub repository: $GITHUB_OWNER/$GITHUB_REPO"
             
