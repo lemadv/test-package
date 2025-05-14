@@ -148,15 +148,20 @@ jobs:
             fi
             
             echo "CIRCLE_PULL_REQUEST: ${CIRCLE_PULL_REQUEST}"
-            echo "CIRCLE_PROJECT_USERNAME: ${CIRCLE_PROJECT_USERNAME}"
-            echo "CIRCLE_PROJECT_REPONAME: ${CIRCLE_PROJECT_REPONAME}"
+            
+            # Use GitHub-specific repo details if set in environment variables, 
+            # otherwise fall back to CircleCI project values
+            GITHUB_OWNER=${GITHUB_OWNER:-$CIRCLE_PROJECT_USERNAME}
+            GITHUB_REPO=${GITHUB_REPO:-$CIRCLE_PROJECT_REPONAME}
+            
+            echo "Using GitHub repository: $GITHUB_OWNER/$GITHUB_REPO"
             
             # Extract PR number from CIRCLE_PULL_REQUEST URL
             PR_NUM=$(echo "$CIRCLE_PULL_REQUEST" | grep -o '[0-9]*$')
             echo "Extracted PR number: $PR_NUM"
             
             # Get PR data and save raw response for debugging
-            PR_API_URL="https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM"
+            PR_API_URL="https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/pulls/$PR_NUM"
             echo "Fetching PR data from: $PR_API_URL"
             
             curl -s -H "Authorization: token $GITHUB_TOKEN" "$PR_API_URL" > pr_data.json
@@ -180,6 +185,8 @@ jobs:
             echo "PR_NUM=$PR_NUM" >> $BASH_ENV
             echo "BASE_BRANCH=$BASE_BRANCH" >> $BASH_ENV
             echo "PR_TITLE=$PR_TITLE" >> $BASH_ENV
+            echo "GITHUB_OWNER=$GITHUB_OWNER" >> $BASH_ENV
+            echo "GITHUB_REPO=$GITHUB_REPO" >> $BASH_ENV
 
       # STEP 2 – get compact file list via GitHub API
       - run:
@@ -190,7 +197,7 @@ jobs:
             
             # Save raw API response and print it
             curl -s -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM/files?per_page=100" \
+              "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/pulls/$PR_NUM/files?per_page=100" \
               > raw_files_response.json
             
             echo "Raw API response:"
