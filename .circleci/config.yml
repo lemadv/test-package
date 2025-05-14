@@ -146,14 +146,37 @@ jobs:
             if [ -z "${CIRCLE_PULL_REQUEST:-}" ]; then
               echo "❌  Not a PR build – skipping"; exit 0
             fi
+            
+            echo "CIRCLE_PULL_REQUEST: ${CIRCLE_PULL_REQUEST}"
+            echo "CIRCLE_PROJECT_USERNAME: ${CIRCLE_PROJECT_USERNAME}"
+            echo "CIRCLE_PROJECT_REPONAME: ${CIRCLE_PROJECT_REPONAME}"
+            
+            # Extract PR number from CIRCLE_PULL_REQUEST URL
             PR_NUM=$(echo "$CIRCLE_PULL_REQUEST" | grep -o '[0-9]*$')
-
-            data=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM")
-
-            BASE_BRANCH=$(echo "$data" | jq -r .base.ref)
-            PR_TITLE=$(echo "$data" | jq -r .title)
-            echo "PR #$PR_NUM → base = $BASE_BRANCH"
+            echo "Extracted PR number: $PR_NUM"
+            
+            # Get PR data and save raw response for debugging
+            PR_API_URL="https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM"
+            echo "Fetching PR data from: $PR_API_URL"
+            
+            curl -s -H "Authorization: token $GITHUB_TOKEN" "$PR_API_URL" > pr_data.json
+            
+            echo "Raw PR data response:"
+            cat pr_data.json
+            
+            # Check if response contains error message
+            if grep -q "message.*Not Found" pr_data.json; then
+              echo "❌ GitHub API returned 'Not Found'. Check GitHub token permissions and repository details."
+              echo "Using fallback branch information"
+              BASE_BRANCH="${CIRCLE_BRANCH:-main}"
+              PR_TITLE="PR #${PR_NUM}"
+            else
+              # Extract required fields
+              BASE_BRANCH=$(jq -r '.base.ref // "main"' pr_data.json)
+              PR_TITLE=$(jq -r '.title // "PR #'$PR_NUM'"' pr_data.json)
+            fi
+            
+            echo "PR #$PR_NUM → base = $BASE_BRANCH, title = $PR_TITLE"
             echo "PR_NUM=$PR_NUM" >> $BASH_ENV
             echo "BASE_BRANCH=$BASE_BRANCH" >> $BASH_ENV
             echo "PR_TITLE=$PR_TITLE" >> $BASH_ENV
@@ -163,24 +186,54 @@ jobs:
           name: "Fetch changed-file list"
           command: |
             source $BASH_ENV
-            # Save raw API response for debugging
+            echo "Fetching files for PR #$PR_NUM"
+            
+            # Save raw API response and print it
             curl -s -H "Authorization: token $GITHUB_TOKEN" \
               "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM/files?per_page=100" \
               > raw_files_response.json
             
-            # Check if the response is valid JSON
-            if ! jq empty raw_files_response.json 2>/dev/null; then
-              echo "❌ Invalid JSON response from GitHub API:"
-              cat raw_files_response.json
+            echo "Raw API response:"
+            cat raw_files_response.json
+            
+            # Check response type
+            if grep -q "message.*Not Found" raw_files_response.json; then
+              echo "❌ GitHub API returned 'Not Found'. Check your token permissions and PR number."
               exit 1
             fi
             
-            # Process the valid JSON response
-            jq -r 'map({file: .filename, add: .additions, del: .deletions})' raw_files_response.json > files.json
+            # Check if the response is an array
+            FIRST_CHAR=$(head -c 1 raw_files_response.json)
+            if [ "$FIRST_CHAR" != "[" ]; then
+              echo "❌ API response is not an array as expected. Cannot process."
+              exit 1
+            fi
             
-            # Verify files.json was created properly
-            echo "Generated files.json content:"
+            # Process files more carefully - falling back to simple file list if needed
+            if jq -e 'map({file: .filename, add: .additions, del: .deletions})' raw_files_response.json > files.json 2>/dev/null; then
+              echo "✅ Successfully processed file list using normal format"
+            elif jq -e '[.[] | {file: .filename, add: .additions, del: .deletions}]' raw_files_response.json > files.json 2>/dev/null; then
+              echo "✅ Successfully processed file list using alternative format"
+            else
+              echo "⚠️ Could not extract structured file data, creating simplified list"
+              jq -r '.[].filename' raw_files_response.json > file_list.txt
+              echo "[" > files.json
+              while read filename; do
+                echo "  {\"file\": \"$filename\", \"add\": 0, \"del\": 0}," >> files.json
+              done < file_list.txt
+              # Remove trailing comma and close array
+              sed -i '$ s/,$//' files.json
+              echo "]" >> files.json
+            fi
+            
+            echo "Processed files.json content:"
             cat files.json
+            
+            # Ensure files.json is valid JSON
+            if ! jq empty files.json 2>/dev/null; then
+              echo "❌ Failed to create valid files.json"
+              exit 1
+            fi
 
       # STEP 3 – build OpenAI prompt and get summary
       - run:
