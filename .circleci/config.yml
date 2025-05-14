@@ -140,41 +140,46 @@ jobs:
       - run:
           name: Generate changelog summary with OpenAI
           command: |
-            echo "Using OPENAI_API_KEY=$OPENAI_API_KEY"
-            git fetch origin master
-            DIFF=$(git diff origin/staging...HEAD)
+            set -euo pipefail
+
+            git fetch origin staging
+            DIFF=$(git diff --name-only origin/staging...HEAD)
 
             if [ -z "$DIFF" ]; then
-              echo "No relevant changes since master."
+              echo "No relevant changes since staging."
               exit 0
             fi
 
-            echo "Calling OpenAI to summarize changes..."
-            SUMMARY=$(curl https://api.openai.com/v1/chat/completions \
-              -s \
+            jq -n --arg diff "$DIFF" '
+              {
+                model: "gpt-4o-mini",
+                temperature: 0.3,
+                messages: [
+                  {role: "system",
+                  content: "You are a senior frontend engineer maintaining a changelog. Generate a clear markdown list grouped by component or config file."},
+                  {role: "user",
+                  content: "Here are the changed files:\n\n" + $diff}
+                ]
+              }' > payload.json
+
+            SUMMARY=$(curl -s \
               -H "Authorization: Bearer $OPENAI_API_KEY" \
               -H "Content-Type: application/json" \
-              -d '{
-                "model": "gpt-4",
-                "messages": [
-                  {
-                    "role": "system",
-                    "content": "You are a senior frontend engineer maintaining a changelog. Generate a clear markdown list grouped by component or config file."
-                  },
-                  {
-                    "role": "user",
-                    "content": "Here are the file changes:\n\n'"$DIFF"'"
-                  }
-                ],
-                "temperature": 0.3
-              }' | jq -r '.choices[0].message.content')
+              --data @payload.json \
+              https://api.openai.com/v1/chat/completions |
+              jq -r '.choices[0].message.content')
+
+            if [ -z "$SUMMARY" ] || [ "$SUMMARY" = "null" ]; then
+              echo "❌ OpenAI call failed"; exit 1
+            fi
 
             node scripts/prepend-changelog.js "$SUMMARY"
 
-            git config user.name  "ci-bot" && git config user.email "ci@example.com"
+            git config user.name  "ci-bot"
+            git config user.email "ci@example.com"
             git add CHANGELOG.md
-            git commit -m "chore: update changelog [skip ci]"
-            git push origin $CIRCLE_BRANCH
+            git commit -m "chore: update changelog [skip ci]" || echo "No changelog changes to commit"
+            git push origin "$CIRCLE_BRANCH"
 workflows:
   version: 2
   pre-release-workflow:
