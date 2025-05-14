@@ -150,7 +150,7 @@ jobs:
             echo "CIRCLE_PULL_REQUEST: ${CIRCLE_PULL_REQUEST}"
             
             # Hardcode correct GitHub repository information
-            GITHUB_OWNER="lemadev"
+            GITHUB_OWNER="lemadv"
             GITHUB_REPO="test-package"
             
             echo "Using GitHub repository: $GITHUB_OWNER/$GITHUB_REPO"
