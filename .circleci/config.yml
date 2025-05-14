@@ -152,11 +152,13 @@ jobs:
               "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM")
 
             BASE_BRANCH=$(echo "$data" | jq -r .base.ref)
+            PR_TITLE=$(echo "$data" | jq -r .title)
             echo "PR #$PR_NUM → base = $BASE_BRANCH"
-            echo "PR_NUM=$PR_NUM"     >> $BASH_ENV
+            echo "PR_NUM=$PR_NUM" >> $BASH_ENV
             echo "BASE_BRANCH=$BASE_BRANCH" >> $BASH_ENV
+            echo "PR_TITLE=$PR_TITLE" >> $BASH_ENV
 
-      # STEP 2 – get compact file list via GitHub API (1 request/page)
+      # STEP 2 – get compact file list via GitHub API
       - run:
           name: "Fetch changed-file list"
           command: |
@@ -164,24 +166,25 @@ jobs:
             curl -s -H "Authorization: token $GITHUB_TOKEN" \
               "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PR_NUM/files?per_page=100" \
               | jq -r '[ .[] | {file:.filename, add:.additions, del:.deletions} ]' \
-              > files.json                              # ≤ ~10 KB for 100 files
+              > files.json
 
-      # STEP 3 – build OpenAI prompt safely
+      # STEP 3 – build OpenAI prompt and get summary
       - run:
-          name: "Call OpenAI"
+          name: "Generate PR Summary"
           command: |
-            jq -n --slurpfile f files.json '
+            source $BASH_ENV
+            jq -n --slurpfile f files.json --arg title "$PR_TITLE" '
               {
-                model: "gpt-4o-mini",
+                model: "gpt-4",
                 temperature: 0.3,
                 messages: [
                   {
                     role: "system",
-                    content: "You are a senior engineer. Summarise the PR as a markdown bullet list, grouping by component or config area."
+                    content: "You are a senior engineer. Create a concise, professional changelog entry for this PR. Focus on user-facing changes and important technical updates. Format it as a single bullet point that starts with a verb in present tense."
                   },
                   {
                     role: "user",
-                    content: ("Changed files (with +/– lines):\n\n" + ($f[0] | map("- " + .file + " (+" + (.add|tostring) + "/-" + (.del|tostring) + ")") | join("\n")))
+                    content: ("PR Title: " + $title + "\n\nChanged files (with +/– lines):\n\n" + ($f[0] | map("- " + .file + " (+" + (.add|tostring) + "/-" + (.del|tostring) + ")") | join("\n")))
                   }
                 ]
               }' > payload.json
@@ -196,12 +199,38 @@ jobs:
             if [ -z "$SUMMARY" ] || [ "$SUMMARY" = "null" ]; then
               echo "❌ OpenAI call failed"; cat payload.json; exit 1
             fi
-            echo "----- summary -----"
+            echo "Generated summary:"
             echo "$SUMMARY"
-            echo "-------------------"
-
-            # save for downstream jobs or slack step
             echo "$SUMMARY" > pr_summary.md
+
+      # STEP 4 – Update CHANGELOG.md
+      - run:
+          name: "Update CHANGELOG.md"
+          command: |
+            source $BASH_ENV
+            # Create CHANGELOG.md if it doesn't exist
+            if [ ! -f CHANGELOG.md ]; then
+              echo "# Changelog" > CHANGELOG.md
+              echo "" >> CHANGELOG.md
+              echo "## [Unreleased]" >> CHANGELOG.md
+              echo "" >> CHANGELOG.md
+            fi
+
+            # Add PR summary to CHANGELOG.md
+            echo "- $SUMMARY" >> CHANGELOG.md
+
+      # STEP 5 – Commit and push changes
+      - run:
+          name: "Commit and push changes"
+          command: |
+            source $BASH_ENV
+            git config --global user.name "CircleCI Bot"
+            git config --global user.email "circleci@example.com"
+            
+            git add CHANGELOG.md
+            git commit -m "docs: update changelog for PR #$PR_NUM"
+            git push origin HEAD:$CIRCLE_BRANCH
+
 workflows:
   version: 2
   pre-release-workflow:
